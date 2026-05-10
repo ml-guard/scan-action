@@ -1,0 +1,125 @@
+# ML Guard — GitHub Action wrapper.
+#
+# Usage in a workflow:
+#
+#   - name: ML Security Scan
+#     uses: ml-guard/scan-action@v1
+#     with:
+#       path: ./models
+#       fail-on: critical
+#       format: sarif
+#       output: ml-guard.sarif
+#   - uses: github/codeql-action/upload-sarif@v3
+#     with:
+#       sarif_file: ml-guard.sarif
+#
+# Composite action: устанавливает ml-guard через pip (или использует уже
+# установленный — see `install` input), запускает scan, экспортирует exit-код
+# и путь к отчёту наружу.
+
+name: 'ML Guard Security Scan'
+description: 'Scan ML pipelines for malicious models, secrets, and CVEs'
+author: 'ML Guard Team'
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  path:
+    description: 'Path to scan (file or directory)'
+    required: false
+    default: '.'
+  fail-on:
+    description: 'Fail the build on findings >= this severity (critical|high|medium|low|info)'
+    required: false
+    default: 'critical'
+  format:
+    description: 'Output format (text|json|sarif)'
+    required: false
+    default: 'sarif'
+  output:
+    description: 'Path to write the report (omit to use stdout)'
+    required: false
+    default: 'ml-guard.sarif'
+  config:
+    description: 'Path to .ml-guard.yml configuration file'
+    required: false
+    default: ''
+  scanners:
+    description: 'Comma-separated whitelist of scanners (default: all)'
+    required: false
+    default: ''
+  exclude:
+    description: 'Comma-separated globs to exclude'
+    required: false
+    default: ''
+  install:
+    description: 'Whether to pip-install ml-guard (set to false if already installed)'
+    required: false
+    default: 'true'
+  version:
+    description: 'ml-guard version to install (default: latest)'
+    required: false
+    default: ''
+
+outputs:
+  report-path:
+    description: 'Path to the generated report'
+    value: ${{ steps.scan.outputs.report-path }}
+  exit-code:
+    description: 'Exit code from ml-guard (0 = clean, 1 = findings ≥ fail-on)'
+    value: ${{ steps.scan.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      if: inputs.install == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install ml-guard
+      if: inputs.install == 'true'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          pip install "mlsupplychain==${{ inputs.version }}"
+        else
+          pip install mlsupplychain
+        fi
+
+    - name: Run ml-guard scan
+      id: scan
+      shell: bash
+      run: |
+        set +e
+        ARGS=(scan "${{ inputs.path }}" \
+              --fail-on "${{ inputs.fail-on }}" \
+              --format "${{ inputs.format }}" \
+              --no-color)
+
+        if [ -n "${{ inputs.output }}" ]; then
+          ARGS+=(--output "${{ inputs.output }}")
+        fi
+        if [ -n "${{ inputs.config }}" ]; then
+          ARGS+=(--config "${{ inputs.config }}")
+        fi
+        if [ -n "${{ inputs.scanners }}" ]; then
+          IFS=',' read -ra ITEMS <<< "${{ inputs.scanners }}"
+          for s in "${ITEMS[@]}"; do
+            ARGS+=(--scanners "$s")
+          done
+        fi
+        if [ -n "${{ inputs.exclude }}" ]; then
+          IFS=',' read -ra ITEMS <<< "${{ inputs.exclude }}"
+          for e in "${ITEMS[@]}"; do
+            ARGS+=(--exclude "$e")
+          done
+        fi
+
+        ml-guard "${ARGS[@]}"
+        EXIT=$?
+        echo "exit-code=$EXIT" >> "$GITHUB_OUTPUT"
+        echo "report-path=${{ inputs.output }}" >> "$GITHUB_OUTPUT"
+        exit $EXIT

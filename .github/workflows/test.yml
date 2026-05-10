@@ -1,0 +1,72 @@
+# Self-test for the ml-guard/scan-action.
+#
+# Runs the action against a tiny fixture repo (committed in tests/fixtures/)
+# that contains a known-bad pickle and a safe one. Asserts the action
+# exits with the expected code and produces a parseable SARIF.
+
+name: Test action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ml-guard against fixtures (should FAIL)
+        id: scan
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures
+          fail-on: critical
+          format: sarif
+          output: ml-guard.sarif
+
+      - name: Verify exit code
+        run: |
+          if [ "${{ steps.scan.outputs.exit-code }}" != "1" ]; then
+            echo "Expected exit-code=1 (findings should fail), got ${{ steps.scan.outputs.exit-code }}"
+            exit 1
+          fi
+
+      - name: Verify SARIF is parseable
+        run: |
+          python3 -c "
+          import json, sys
+          with open('ml-guard.sarif') as f:
+              s = json.load(f)
+          assert s['version'] == '2.1.0'
+          assert s['runs'][0]['tool']['driver']['name'] == 'ml-guard'
+          assert len(s['runs'][0]['results']) > 0
+          print(f'OK: SARIF has {len(s[\"runs\"][0][\"results\"])} results')
+          "
+
+  clean-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ml-guard on empty path (should PASS)
+        id: scan
+        uses: ./
+        with:
+          path: tests/fixtures/clean
+          fail-on: critical
+          format: sarif
+
+      - name: Verify exit code is 0
+        run: |
+          if [ "${{ steps.scan.outputs.exit-code }}" != "0" ]; then
+            echo "Expected exit-code=0 on clean repo, got ${{ steps.scan.outputs.exit-code }}"
+            exit 1
+          fi
