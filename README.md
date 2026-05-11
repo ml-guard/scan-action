@@ -1,5 +1,9 @@
 # ML Guard Security Scan
 
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-ML%20Guard%20Security%20Scan-blue?logo=github)](https://github.com/marketplace/actions/ml-guard-security-scan)
+[![Release](https://img.shields.io/github/v/release/ml-guard/scan-action?logo=github)](https://github.com/ml-guard/scan-action/releases)
+[![License](https://img.shields.io/github/license/ml-guard/scan-action)](LICENSE)
+
 > GitHub Action wrapper around [ml-guard](https://github.com/ml-guard/ml-guard).
 
 Scans your repository for ML supply-chain risks: malicious pickle code,
