@@ -13,9 +13,9 @@
 #     with:
 #       sarif_file: ml-guard.sarif
 #
-# Composite action: устанавливает ml-guard через pip (или использует уже
-# установленный — see `install` input), запускает scan, экспортирует exit-код
-# и путь к отчёту наружу.
+# Composite action: installs ml-guard via pip (or uses an existing
+# install — see the `install` input), runs the scan, and exposes the
+# exit code and report path as outputs.
 
 name: 'ML Guard Security Scan'
 description: 'Scan ML pipelines for malicious models, secrets, and CVEs'
